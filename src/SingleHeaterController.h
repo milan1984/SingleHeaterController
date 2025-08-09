@@ -35,6 +35,10 @@ public:
     void setWindowSize(unsigned long windowSize);
     void setADCResoultion(double resolution);
 
+    void outputEnable(bool onOff = true); //Enabled by default
+
+    bool isEnabled(void);
+
 private:
     int _tempPin;
     int _ssrPin;
@@ -44,6 +48,7 @@ private:
     double _input;
     double _output;
     double _setpoint;
+    bool _outputEnabled;
 
     double _adcResoulution = RESOLUTION_ADC_12BIT;
 

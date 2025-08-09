@@ -1,7 +1,7 @@
 #include "SingleHeaterController.h"
 
 SingleHeaterController::SingleHeaterController(int tempPin, int ssrPin, double setpoint, unsigned long windowSize)
-    : _tempPin(tempPin), _ssrPin(ssrPin), _setpoint(setpoint), _windowSize(windowSize),
+    : _tempPin(tempPin), _ssrPin(ssrPin), _setpoint(setpoint), _windowSize(windowSize), _outputEnabled(true),
       _pid(&_input, &_output, &_setpoint, 2.0, 5.0, 1.0, P_ON_M, DIRECT)
 {
     _windowStartTime = millis();
@@ -27,7 +27,14 @@ TempStatus SingleHeaterController::update()
     _input = readTemperature(_tempPin);
     _pid.Compute();
 
-    digitalWrite(_ssrPin, (_output > millis() - _windowStartTime) ? HIGH : LOW);
+    if (_outputEnabled)
+    {
+        digitalWrite(_ssrPin, (_output > millis() - _windowStartTime) ? HIGH : LOW);
+    }
+    else
+    {
+        digitalWrite(_ssrPin, LOW);
+    }
 
     if (_input < _setpoint + _toleranceMin)
         status = TempStatus::BELOW_RANGE;
@@ -78,6 +85,16 @@ void SingleHeaterController::setWindowSize(unsigned long windowSize)
 void SingleHeaterController::setADCResoultion(double resolution)
 {
     _adcResoulution = resolution;
+}
+
+void SingleHeaterController::outputEnable(bool onOff)
+{
+    _outputEnabled = onOff;
+}
+
+bool SingleHeaterController::isEnabled(void)
+{
+    return _outputEnabled;
 }
 
 // Steinhart-Hart approximation for 100k NTC thermistor, B=3950
