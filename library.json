@@ -1,0 +1,11 @@
+{
+  "name": "SingleHeaterController",
+  "version": "0.0.0+20251007130627",
+  "dependencies": [
+    {
+      "name": "Arduino-PID-Library",
+      "version": "https://github.com/br3ttb/Arduino-PID-Library#master",
+      "external-repo": "https://github.com/br3ttb/Arduino-PID-Library.git"
+    }
+  ]
+}
