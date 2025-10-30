@@ -35,9 +35,19 @@ public:
     void setWindowSize(unsigned long windowSize);
     void setADCResoultion(double resolution);
 
-    void outputEnable(bool onOff = true); //Enabled by default
+    void outputEnable(bool onOff = true); // Enabled by default
 
     bool isEnabled(void);
+
+    /**
+     * @brief Set the error detection delay (timeout) in milliseconds.
+     *
+     * Defines how long a temperature must stay outside the valid range
+     * before an error is confirmed.
+     *
+     * @param delayMs Delay time in milliseconds (e.g., 100 = 0.1s)
+     */
+    void setErrorDelay(unsigned long delayMs = 100);
 
 private:
     int _tempPin;
@@ -58,7 +68,13 @@ private:
 
     PID _pid;
 
+    unsigned long _errorStartTime = 0;
+    bool _errorActive = false;
+    unsigned long _errorDelay = 100; // ms
+    TempStatus _lastStableStatus = TempStatus::WITHIN_RANGE;
+
     double readTemperature(int pin);
+    TempStatus validateTemperatureError(float input);
 };
 
 #endif

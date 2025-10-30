@@ -15,10 +15,55 @@ void SingleHeaterController::begin()
     _pid.SetOutputLimits(0, _windowSize);
 }
 
+TempStatus SingleHeaterController::validateTemperatureError(float input)
+{
+    TempStatus retVal = TempStatus::WITHIN_RANGE;
+    unsigned long now = millis();
+
+    // Determine the instantaneous temperature status
+    TempStatus instantStatus;
+    if (input < _setpoint + _toleranceMin)
+        instantStatus = TempStatus::BELOW_RANGE;
+    else if (input > _setpoint + _toleranceMax)
+        instantStatus = TempStatus::ABOVE_RANGE;
+    else
+        instantStatus = TempStatus::WITHIN_RANGE;
+
+    // Apply time delay filter for error detection
+    if (instantStatus != TempStatus::WITHIN_RANGE)
+    {
+        // Error just started
+        if (!_errorActive)
+        {
+            _errorActive = true;
+            _errorStartTime = now;
+        }
+
+        // If error persists longer than allowed delay, confirm it
+        if (now - _errorStartTime >= _errorDelay)
+        {
+            _lastStableStatus = instantStatus;
+            retVal = instantStatus;
+        }
+        else
+        {
+            // Not enough time has passed – keep last stable status
+            retVal = _lastStableStatus;
+        }
+    }
+    else
+    {
+        // Temperature back within range – reset error tracking
+        _errorActive = false;
+        _lastStableStatus = TempStatus::WITHIN_RANGE;
+        retVal = TempStatus::WITHIN_RANGE;
+    }
+
+    return retVal;
+}
+
 TempStatus SingleHeaterController::update()
 {
-    TempStatus status = TempStatus::SENSOR_FAULT;
-
     if (millis() - _windowStartTime > _windowSize)
     {
         _windowStartTime += _windowSize;
@@ -36,12 +81,7 @@ TempStatus SingleHeaterController::update()
         digitalWrite(_ssrPin, LOW);
     }
 
-    if (_input < _setpoint + _toleranceMin)
-        status = TempStatus::BELOW_RANGE;
-    else if (_input > _setpoint + _toleranceMax)
-        status = TempStatus::ABOVE_RANGE;
-    else
-        status = TempStatus::WITHIN_RANGE;
+    TempStatus status = validateTemperatureError(_input);
 
     return status;
 }
@@ -95,6 +135,11 @@ void SingleHeaterController::outputEnable(bool onOff)
 bool SingleHeaterController::isEnabled(void)
 {
     return _outputEnabled;
+}
+
+void SingleHeaterController::setErrorDelay(unsigned long delayMs)
+{
+    _errorDelay = delayMs;
 }
 
 // Steinhart-Hart approximation for 100k NTC thermistor, B=3950
