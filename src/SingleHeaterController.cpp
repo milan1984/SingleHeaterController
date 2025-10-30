@@ -1,7 +1,7 @@
 #include "SingleHeaterController.h"
 
 SingleHeaterController::SingleHeaterController(int tempPin, int ssrPin, double setpoint, unsigned long windowSize)
-    : _tempPin(tempPin), _ssrPin(ssrPin), _setpoint(setpoint), _windowSize(windowSize), _outputEnabled(true),
+    : _tempPin(tempPin), _ssrPin(ssrPin), _setpoint(setpoint), _windowSize(windowSize), _outputEnabled(true), _errorDelay(0),
       _pid(&_input, &_output, &_setpoint, 2.0, 5.0, 1.0, P_ON_M, DIRECT)
 {
     _windowStartTime = millis();

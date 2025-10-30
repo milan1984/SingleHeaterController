@@ -10,6 +10,7 @@
 #define NTC_10K 10000.0
 #define NTC_100K 100000.0
 
+
 enum class TempStatus
 {
     BELOW_RANGE,
@@ -47,7 +48,7 @@ public:
      *
      * @param delayMs Delay time in milliseconds (e.g., 100 = 0.1s)
      */
-    void setErrorDelay(unsigned long delayMs = 100);
+    void setErrorDelay(unsigned long delayMs);
 
 private:
     int _tempPin;
@@ -70,7 +71,7 @@ private:
 
     unsigned long _errorStartTime = 0;
     bool _errorActive = false;
-    unsigned long _errorDelay = 100; // ms
+    unsigned long _errorDelay = 0; // ms
     TempStatus _lastStableStatus = TempStatus::WITHIN_RANGE;
 
     double readTemperature(int pin);
