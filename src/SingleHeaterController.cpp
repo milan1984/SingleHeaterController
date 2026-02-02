@@ -1,7 +1,15 @@
 #include "SingleHeaterController.h"
 
-SingleHeaterController::SingleHeaterController(int tempPin, int ssrPin, double setpoint, unsigned long windowSize)
-    : _tempPin(tempPin), _ssrPin(ssrPin), _setpoint(setpoint), _windowSize(windowSize), _outputEnabled(true), _errorDelay(0),
+#if defined(STM32F1xx) || defined(ARDUINO_BLUEPILL_F103CB) || defined(ARDUINO_BLUEPILL_F103C8)
+#define RESOLUTION_ADC 12
+#else
+#define RESOLUTION_ADC 10
+#endif
+
+#define ADC_MAX_VALUE ((1UL << RESOLUTION_ADC) - 1U)
+
+SingleHeaterController::SingleHeaterController(int tempPin, int ssrPin, double setpoint, unsigned long windowSize, ProbeType probe)
+    : _tempPin(tempPin), _ssrPin(ssrPin), _setpoint(setpoint), _windowSize(windowSize), _outputEnabled(true), _errorDelay(0), _probeType(probe),
       _pid(&_input, &_output, &_setpoint, 2.0, 5.0, 1.0, P_ON_M, DIRECT)
 {
     _windowStartTime = millis();
@@ -10,7 +18,7 @@ SingleHeaterController::SingleHeaterController(int tempPin, int ssrPin, double s
 void SingleHeaterController::begin()
 {
     pinMode(_ssrPin, OUTPUT);
-    analogReadResolution(12);
+    analogReadResolution(RESOLUTION_ADC);
     _pid.SetMode(AUTOMATIC);
     _pid.SetOutputLimits(0, _windowSize);
 }
@@ -69,7 +77,14 @@ TempStatus SingleHeaterController::update()
         _windowStartTime += _windowSize;
     }
 
-    _input = readTemperature(_tempPin);
+    if (_probeType == ProbeType::L_TYPE)
+    {
+        _input = readTemperatureTypeL(_tempPin);
+    }
+    else
+    {
+        _input = readTemperature(_tempPin);
+    }
     _pid.Compute();
 
     if (_outputEnabled)
@@ -122,11 +137,6 @@ void SingleHeaterController::setWindowSize(unsigned long windowSize)
     _windowSize = windowSize;
 }
 
-void SingleHeaterController::setADCResoultion(double resolution)
-{
-    _adcResoulution = resolution;
-}
-
 void SingleHeaterController::outputEnable(bool onOff)
 {
     _outputEnabled = onOff;
@@ -142,19 +152,32 @@ void SingleHeaterController::setErrorDelay(unsigned long delayMs)
     _errorDelay = delayMs;
 }
 
+void SingleHeaterController::setMCUVoltageReference(double voltage)
+{
+    _mcuVoltageReference = voltage;
+}
+
+void SingleHeaterController::setProbeTypeLParameters(double vMinADC, double vMaxADC, double tempMin, double tempMax)
+{
+    _vMinADC = vMinADC;
+    _vMaxADC = vMaxADC;
+    _tempMinProbe = tempMin;
+    _tempMaxProbe = tempMax;
+}
+
 // Steinhart-Hart approximation for 100k NTC thermistor, B=3950
 double SingleHeaterController::readTemperature(int pin)
 {
     // Read analog value from the specified pin (12-bit ADC: 0–4095)
     int adcValue = analogRead(pin);
 
-    if (adcValue <= 0 || adcValue >= _adcResoulution)
+    if (adcValue <= 0 || adcValue >= ADC_MAX_VALUE)
     {
         return -273.15; // Error
     }
 
     // Calculate thermistor resistance based on voltage divider formula
-    double resistance = _dividerResistor / (_adcResoulution / adcValue - 1.0);
+    double resistance = _dividerResistor / (ADC_MAX_VALUE / adcValue - 1.0);
 
     // Apply simplified Steinhart-Hart equation
     double steinhart;
@@ -165,4 +188,22 @@ double SingleHeaterController::readTemperature(int pin)
     steinhart = 1.0 / steinhart;               // Take inverse to get absolute temperature in Kelvin
 
     return steinhart - 273.15; // Convert Kelvin to Celsius
+}
+
+double SingleHeaterController::readTemperatureTypeL(int pin)
+{
+    uint16_t adcValue = analogRead(pin);
+
+    if (adcValue <= 0 || adcValue >= ADC_MAX_VALUE)
+    {
+        return -273.15;
+    }
+
+    /* ADC -> voltage on ADC pin */
+    double adcVoltage = ((double)adcValue / ADC_MAX_VALUE) * _mcuVoltageReference;
+
+    /* Linear scaling using member variables from the header */
+    double temp = _tempMinProbe + (adcVoltage - _vMinADC) * (_tempMaxProbe - _tempMinProbe) / (_vMaxADC - _vMinADC);
+
+    return temp;
 }
