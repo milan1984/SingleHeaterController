@@ -8,6 +8,8 @@
 
 #define ADC_MAX_VALUE ((1UL << RESOLUTION_ADC) - 1U)
 
+#define ERROR_VALUE -273.15
+
 SingleHeaterController::SingleHeaterController(int tempPin, int ssrPin, double setpoint, unsigned long windowSize, ProbeType probe)
     : _tempPin(tempPin), _ssrPin(ssrPin), _setpoint(setpoint), _windowSize(windowSize), _outputEnabled(true), _errorDelay(0), _probeType(probe),
       _pid(&_input, &_output, &_setpoint, 2.0, 5.0, 1.0, P_ON_M, DIRECT)
@@ -30,7 +32,9 @@ TempStatus SingleHeaterController::validateTemperatureError(float input)
 
     // Determine the instantaneous temperature status
     TempStatus instantStatus;
-    if (input < _setpoint + _toleranceMin)
+    if ((int)input == (int)ERROR_VALUE)
+        instantStatus = TempStatus::SENSOR_FAULT;
+    else if (input < _setpoint + _toleranceMin)
         instantStatus = TempStatus::BELOW_RANGE;
     else if (input > _setpoint + _toleranceMax)
         instantStatus = TempStatus::ABOVE_RANGE;
@@ -173,7 +177,7 @@ double SingleHeaterController::readTemperature(int pin)
 
     if (adcValue <= 0 || adcValue >= ADC_MAX_VALUE)
     {
-        return -273.15; // Error
+        return ERROR_VALUE; // Error
     }
 
     // Calculate thermistor resistance based on voltage divider formula
@@ -196,7 +200,7 @@ double SingleHeaterController::readTemperatureTypeL(int pin)
 
     if (adcValue <= 0 || adcValue >= ADC_MAX_VALUE)
     {
-        return -273.15;
+        return ERROR_VALUE;
     }
 
     /* ADC -> voltage on ADC pin */
