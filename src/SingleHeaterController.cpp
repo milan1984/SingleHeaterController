@@ -17,10 +17,29 @@ SingleHeaterController::SingleHeaterController(int tempPin, int ssrPin, double s
     _windowStartTime = millis();
 }
 
+SingleHeaterController::SingleHeaterController(
+    int tempPin,
+    double setpoint,
+    unsigned long windowSize,
+    ProbeType probe,
+    OutputWriteCallback callback)
+    : _tempPin(tempPin),
+      _setpoint(setpoint),
+      _windowSize(windowSize),
+      _probeType(probe),
+      _outputCallback(callback),
+      _pid(&_input, &_output, &_setpoint, 2.0, 5.0, 1.0, P_ON_M, DIRECT)
+{
+    _windowStartTime = millis();
+}
+
 void SingleHeaterController::begin()
 {
-    pinMode(_ssrPin, OUTPUT);
+    if (_ssrPin >= 0)
+        pinMode(_ssrPin, OUTPUT);
+
     analogReadResolution(RESOLUTION_ADC);
+
     _pid.SetMode(AUTOMATIC);
     _pid.SetOutputLimits(0, _windowSize);
 }
@@ -77,32 +96,23 @@ TempStatus SingleHeaterController::validateTemperatureError(float input)
 TempStatus SingleHeaterController::update()
 {
     if (millis() - _windowStartTime > _windowSize)
-    {
         _windowStartTime += _windowSize;
-    }
 
     if (_probeType == ProbeType::L_TYPE)
-    {
         _input = readTemperatureTypeL(_tempPin);
-    }
     else
-    {
         _input = readTemperature(_tempPin);
-    }
+
     _pid.Compute();
 
+    bool state = false;
+
     if (_outputEnabled)
-    {
-        digitalWrite(_ssrPin, (_output > millis() - _windowStartTime) ? HIGH : LOW);
-    }
-    else
-    {
-        digitalWrite(_ssrPin, LOW);
-    }
+        state = (_output > millis() - _windowStartTime); // Output is ON if the current time is within the "ON" portion of the window
 
-    TempStatus status = validateTemperatureError(_input);
+    writeOutput(state);
 
-    return status;
+    return validateTemperatureError(_input);
 }
 
 double SingleHeaterController::getTemperature() const
@@ -210,4 +220,18 @@ double SingleHeaterController::readTemperatureTypeL(int pin)
     double temp = _tempMinProbe + (adcVoltage - _vMinADC) * (_tempMaxProbe - _tempMinProbe) / (_vMaxADC - _vMinADC);
 
     return temp;
+}
+
+void SingleHeaterController::writeOutput(bool state)
+{
+    if (_outputCallback)
+    {
+        // Custom output handling (virtual output)
+        _outputCallback(state);
+    }
+    else if (_ssrPin >= 0)
+    {
+        // Physical pin output
+        digitalWrite(_ssrPin, state ? HIGH : LOW);
+    }
 }
